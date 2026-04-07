@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ShieldCheck, Lock } from "lucide-react";
@@ -18,15 +18,17 @@ export const AdminGuard = ({ children }: { children: React.ReactNode }) => {
   const [error, setError] = useState("");
   const [checking, setChecking] = useState(false);
 
+  // If user has is_admin flag, automatically authenticate
+  useEffect(() => {
+    if (user?.is_admin) {
+      setAuthenticated(true);
+    }
+  }, [user?.is_admin]);
+
   if (loading) return null;
 
   // Must be logged in first
   if (!user) return <Navigate to="/signin" replace />;
-
-  // If user is already flagged as admin, allow through
-  if (user.is_admin && !authenticated) {
-    setAuthenticated(true);
-  }
 
   const handleLogin = async () => {
     setChecking(true);

@@ -10,6 +10,7 @@ export interface User {
   profile_photo: string | null;
   kyc_status: string;
   referral_code: string;
+  role?: string;
   is_admin?: boolean;
 }
 
@@ -40,7 +41,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const stored = localStorage.getItem("user_profile");
     if (token && stored) {
       try {
-        setUser(JSON.parse(stored));
+        const userData = JSON.parse(stored);
+        // Ensure is_admin is set based on role
+        const userWithRole = {
+          ...userData,
+          is_admin: userData.role === "admin" || userData.role === "super_admin",
+        };
+        setUser(userWithRole);
       } catch { /* ignore */ }
     }
     setLoading(false);
@@ -49,9 +56,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = async (phone: string, password: string, pin: string) => {
     const res = await authService.login({ phone, password, pin });
     const { accessToken, user: userData } = res.data;
+    
+    // Map backend role to is_admin flag
+    const userWithRole = {
+      ...userData,
+      is_admin: userData.role === "admin" || userData.role === "super_admin",
+    };
+    
     localStorage.setItem("access_token", accessToken);
-    localStorage.setItem("user_profile", JSON.stringify(userData));
-    setUser(userData as User);
+    localStorage.setItem("user_profile", JSON.stringify(userWithRole));
+    setUser(userWithRole as User);
   };
 
   const register = async (data: { phone: string; password: string; pin: string; full_name: string; referral_code?: string }) => {

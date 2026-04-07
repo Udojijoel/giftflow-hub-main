@@ -23,6 +23,15 @@ const SignIn = () => {
     setError("");
     try {
       await login(phone, password, pin);
+      // Check if user is admin and redirect accordingly
+      const stored = localStorage.getItem("user_profile");
+      if (stored) {
+        const user = JSON.parse(stored);
+        if (user.role === "admin" || user.role === "super_admin") {
+          navigate("/admin", { replace: true });
+          return;
+        }
+      }
       navigate("/dashboard", { replace: true });
     } catch (err: any) {
       setError(err.response?.data?.message || "Invalid credentials. Please try again.");
