@@ -8,11 +8,20 @@ import {
   adminGetPending, adminApproveTrade, adminRejectTrade, adminGetAllTrades,
 } from '../controllers/trade.controller.js';
 import { adminGetRates, adminCreateRate, adminUpdateRate } from '../controllers/rates.controller.js';
+import { rateLimit } from 'express-rate-limit';
+
+const adminPinLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 3,
+  message: { message: 'Too many PIN attempts. Try again in 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 const router = Router();
 
 // Admin PIN verify (no auth needed — just PIN)
-router.post('/auth/verify', verifyAdminPin);
+router.post('/auth/verify', adminPinLimiter, verifyAdminPin);
 
 // All routes below require JWT + admin role
 router.use(authenticate, requireAdmin);

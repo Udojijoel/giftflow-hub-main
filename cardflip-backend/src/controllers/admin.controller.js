@@ -1,11 +1,21 @@
 import { prisma } from '../services/prisma.js';
 import { AppError } from '../utils/AppError.js';
+import bcrypt from 'bcryptjs';
 
 // POST /admin/auth/verify
 export const verifyAdminPin = async (req, res, next) => {
   try {
     const { pin } = req.body;
-    if (pin !== process.env.ADMIN_PIN) throw new AppError('Invalid admin PIN', 401);
+    if (!pin || !/^\d{6}$/.test(pin)) throw new AppError('PIN must be 6 digits', 400);
+
+    const adminPin = process.env.ADMIN_PIN || '';
+    // Use timingSafeEqual to prevent timing attacks
+    const { timingSafeEqual, Buffer } = await import('crypto');
+    const a = Buffer.from(pin.padEnd(6));
+    const b = Buffer.from(adminPin.padEnd(6));
+    const valid = a.length === b.length && timingSafeEqual(a, b);
+
+    if (!valid) throw new AppError('Invalid admin PIN', 401);
     res.json({ message: 'Admin access granted' });
   } catch (err) { next(err); }
 };
