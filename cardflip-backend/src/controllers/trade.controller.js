@@ -141,11 +141,19 @@ export const adminApproveTrade = async (req, res, next) => {
     }
 
     await prisma.$transaction(async (tx) => {
+
+      // 1. Update trade status to Approved
       await tx.trade.update({
         where: { id },
-        data: { status: 'Approved', admin_note: admin_note || null, processed_by: req.user.id, processed_at: new Date() },
+        data: {
+          status: 'Approved',
+          admin_note: admin_note || null,
+          processed_by: req.user.id,
+          processed_at: new Date(),
+        },
       });
 
+      // 2. Credit user wallet with trade amount
       await creditWallet(tx, {
         user_id: trade.user_id,
         amount: trade.naira_amount,
@@ -153,6 +161,7 @@ export const adminApproveTrade = async (req, res, next) => {
         metadata: { trade_id: trade.id },
       });
 
+      // 3. Notify the user their trade was approved
       await tx.notification.create({
         data: {
           user_id: trade.user_id,
@@ -162,6 +171,41 @@ export const adminApproveTrade = async (req, res, next) => {
           data: { trade_id: trade.id },
         },
       });
+
+      // 4. REFERRAL BONUS TRIGGER
+      const approvedTradeCount = await tx.trade.count({
+        where: { user_id: trade.user_id, status: 'Approved' },
+      });
+
+      if (approvedTradeCount === 1) {
+        const referral = await tx.referral.findFirst({
+          where: { referred_id: trade.user_id, is_paid: false },
+        });
+
+        if (referral) {
+          await creditWallet(tx, {
+            user_id: referral.referrer_id,
+            amount: referral.bonus_amount,
+            description: `Referral bonus — friend completed first trade`,
+            metadata: { referral_id: referral.id, referred_user_id: trade.user_id },
+          });
+
+          await tx.referral.update({
+            where: { id: referral.id },
+            data: { is_paid: true, paid_at: new Date() },
+          });
+
+          await tx.notification.create({
+            data: {
+              user_id: referral.referrer_id,
+              title: 'Referral Bonus Paid! 🎉',
+              body: `₦${parseFloat(referral.bonus_amount).toLocaleString()} added to your wallet. Your referral just completed their first trade!`,
+              type: 'REFERRAL_BONUS',
+              data: { referral_id: referral.id, amount: parseFloat(referral.bonus_amount) },
+            },
+          });
+        }
+      }
     });
 
     const io = req.app.get('io');
@@ -185,7 +229,12 @@ export const adminRejectTrade = async (req, res, next) => {
 
     await prisma.trade.update({
       where: { id },
-      data: { status: 'Rejected', admin_note: admin_note || null, processed_by: req.user.id, processed_at: new Date() },
+      data: {
+        status: 'Rejected',
+        admin_note: admin_note || null,
+        processed_by: req.user.id,
+        processed_at: new Date(),
+      },
     });
 
     await prisma.notification.create({
@@ -199,7 +248,11 @@ export const adminRejectTrade = async (req, res, next) => {
     });
 
     const io = req.app.get('io');
-    io?.to(`user:${trade.user_id}`).emit('trade:update', { trade_id: id, status: 'Rejected', admin_note });
+    io?.to(`user:${trade.user_id}`).emit('trade:update', {
+      trade_id: id,
+      status: 'Rejected',
+      admin_note,
+    });
 
     res.json({ message: 'Trade rejected' });
   } catch (err) { next(err); }
@@ -218,7 +271,8 @@ export const adminGetAllTrades = async (req, res, next) => {
         where,
         include: { user: { select: { id: true, full_name: true, phone: true } } },
         orderBy: { created_at: 'desc' },
-        skip, take,
+        skip,
+        take,
       }),
       prisma.trade.count({ where }),
     ]);

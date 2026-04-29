@@ -33,6 +33,7 @@ const userShape = (user) => ({
   profile_photo: user.profile_photo || null,
   kyc_status: user.kyc_status,
   referral_code: user.referral_code,
+  role: user.role,
 });
 
 // POST /auth/register
