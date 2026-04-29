@@ -6,11 +6,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
 import api from "@/services/api";
 
-/**
- * Admin route guard.
- * Checks if the current user has admin privileges via the backend.
- * Falls back to a server-validated admin PIN if needed.
- */
 export const AdminGuard = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   const [authenticated, setAuthenticated] = useState(false);
@@ -25,20 +20,26 @@ export const AdminGuard = ({ children }: { children: React.ReactNode }) => {
     }
   }, [user?.is_admin]);
 
+  // Show nothing while auth is loading
   if (loading) return null;
 
-  // Must be logged in first
+  // Must be logged in first — redirect to signin
   if (!user) return <Navigate to="/signin" replace />;
+
+  // Must be an admin — redirect non-admins to dashboard
+  if (!user.is_admin && !authenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const handleLogin = async () => {
     setChecking(true);
     setError("");
     try {
-      // Validate admin PIN with backend
       await api.post("/admin/auth/verify", { pin });
       setAuthenticated(true);
     } catch (err: any) {
       setError(err.response?.data?.message || "Invalid admin PIN");
+      setPin("");
     } finally {
       setChecking(false);
     }
@@ -53,7 +54,9 @@ export const AdminGuard = ({ children }: { children: React.ReactNode }) => {
           </div>
           <div>
             <h1 className="text-xl font-bold text-foreground">Admin Access</h1>
-            <p className="text-sm text-muted-foreground mt-1">Enter your admin PIN to continue</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Enter your admin PIN to continue
+            </p>
           </div>
           <div className="space-y-3">
             <div className="relative">
@@ -63,13 +66,22 @@ export const AdminGuard = ({ children }: { children: React.ReactNode }) => {
                 maxLength={6}
                 placeholder="6-digit PIN"
                 value={pin}
-                onChange={(e) => { setPin(e.target.value.replace(/\D/g, "")); setError(""); }}
-                onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                onChange={(e) => {
+                  setPin(e.target.value.replace(/\D/g, ""));
+                  setError("");
+                }}
+                onKeyDown={(e) => e.key === "Enter" && pin.length === 6 && handleLogin()}
                 className="pl-9 bg-card border-border text-center tracking-[0.5em] text-lg"
               />
             </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button className="w-full" onClick={handleLogin} disabled={pin.length !== 6 || checking}>
+            {error && (
+              <p className="text-sm text-destructive">{error}</p>
+            )}
+            <Button
+              className="w-full"
+              onClick={handleLogin}
+              disabled={pin.length !== 6 || checking}
+            >
               {checking ? "Verifying..." : "Access Admin Panel"}
             </Button>
           </div>

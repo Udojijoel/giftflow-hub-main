@@ -9,7 +9,6 @@ export const verifyAdminPin = async (req, res, next) => {
     if (!pin || !/^\d{6}$/.test(pin)) throw new AppError('PIN must be 6 digits', 400);
 
     const adminPin = process.env.ADMIN_PIN || '';
-    // Use timingSafeEqual to prevent timing attacks
     const { timingSafeEqual, Buffer } = await import('crypto');
     const a = Buffer.from(pin.padEnd(6));
     const b = Buffer.from(adminPin.padEnd(6));
@@ -45,12 +44,26 @@ export const getDashboardStats = async (req, res, next) => {
     ]);
 
     res.json({
-      trades_today: tradesToday,
-      volume_today: parseFloat(volumeToday._sum.naira_amount || 0),
+      today_trades: tradesToday,
+      trade_volume: parseFloat(volumeToday._sum.naira_amount || 0),
       pending_count: pendingCount,
       total_users: totalUsers,
       total_trades: totalTrades,
       total_volume: parseFloat(totalVolume._sum.naira_amount || 0),
+      today_trades_change: '+0%',
+      volume_change: '+0%',
+      pending_change: '+0%',
+      users_change: '+0%',
+      weekly_chart: [
+        { day: 'Mon', trades: 0 },
+        { day: 'Tue', trades: 0 },
+        { day: 'Wed', trades: 0 },
+        { day: 'Thu', trades: 0 },
+        { day: 'Fri', trades: 0 },
+        { day: 'Sat', trades: 0 },
+        { day: 'Sun', trades: 0 },
+      ],
+      recent_trades: [],
     });
   } catch (err) { next(err); }
 };
